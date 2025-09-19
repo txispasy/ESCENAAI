@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { generateImage, optimizePrompt, styleDescriptions, QuotaExceededError, ratePrompt } from './services/geminiService';
+import { generateImage, optimizePrompt, ratePrompt } from './services/geminiService';
 import { Header } from './components/Header';
 import { PromptForm } from './components/PromptForm';
 import { LoadingIndicator } from './components/LoadingIndicator';
@@ -11,23 +11,35 @@ import { WebHandoffDisplay } from './components/WebPromptDisplay';
 
 type GenerationState = 'idle' | 'optimizing_prompts' | 'prompt_selection' | 'generating' | 'success' | 'error' | 'web_handoff';
 export type GenerationMode = 'quality' | 'fast';
-export type GenerationType = 'image'; // Only image generation is supported
 export type UIMode = 'simple' | 'pro';
 export type AppView = 'generator' | 'gallery';
 
 export type GalleryItem = {
   id: string;
   mediaUrl: string;
-  type: GenerationType;
   originalPrompt: string;
-  optimizedPrompt: string;
-  negativePrompt: string;
-  style: string;
-  aspectRatio: string;
   createdAt: number;
+  optimizedPrompt?: string;
+  negativePrompt?: string;
+  style?: string;
+  aspectRatio?: string;
 };
 
+// This is the data structure for what's displayed on the results screen
+export type ResultItem = Omit<GalleryItem, 'id' | 'createdAt'>;
+
 const App: React.FC = () => {
+  // Common State
+  const [generationState, setGenerationState] = useState<GenerationState>('idle');
+  const [errorMessage, setErrorMessage] = useState<Error | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
+  const [lastAttemptedPrompt, setLastAttemptedPrompt] = useState<string>('');
+  const [view, setView] = useState<AppView>('generator');
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [generatedResults, setGeneratedResults] = useState<ResultItem[]>([]);
+  
+  // Image-specific State
   const [prompts, setPrompts] = useState<string[]>(['']);
   const [negativePrompt, setNegativePrompt] = useState<string>('');
   const [optimizedPrompts, setOptimizedPrompts] = useState<string[]>([]);
@@ -35,16 +47,7 @@ const App: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<string>('16:9');
   const [generationMode, setGenerationMode] = useState<GenerationMode>('quality');
   const [uiMode, setUiMode] = useState<UIMode>('simple');
-  const [generatedMedia, setGeneratedMedia] = useState<(string | null)[]>([]);
-  const [generationState, setGenerationState] = useState<GenerationState>('idle');
-  const [errorMessage, setErrorMessage] = useState<Error | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState<string>('');
-  const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
   const [promptScores, setPromptScores] = useState<{ original: number; optimized: number } | null>(null);
-  const [lastAttemptedPrompt, setLastAttemptedPrompt] = useState<string>('');
-  
-  const [view, setView] = useState<AppView>('generator');
-  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
   const isLoading = generationState === 'optimizing_prompts' || generationState === 'generating';
 
@@ -52,19 +55,21 @@ const App: React.FC = () => {
     try {
       const storedItems = localStorage.getItem('ai-image-gallery');
       if (storedItems) {
-        const parsed = JSON.parse(storedItems).map((item: any) => ({
+        // Ensure all loaded items have a 'type', defaulting to 'image' for legacy items
+        const parsed: GalleryItem[] = JSON.parse(storedItems).map((item: any) => ({
           ...item,
-          mediaUrl: item.mediaUrl || item.imageUrl,
-          type: 'image' as GenerationType // Force type to image for legacy items
-        })).filter((item: any) => item.type === 'image'); // Filter out any old video items
+          type: item.type || 'image',
+          mediaUrl: item.mediaUrl || item.imageUrl, // Handle legacy property
+        }));
         setGalleryItems(parsed);
       }
-    } catch (error) {
+    } catch (error)
+      {
       console.error("Failed to load from localStorage", error);
     }
   }, []);
 
-  const handleSaveToGallery = (item: Omit<GalleryItem, 'id' | 'createdAt'>) => {
+  const handleSaveToGallery = (item: ResultItem) => {
     const isDuplicate = galleryItems.some(g => g.mediaUrl === item.mediaUrl && g.originalPrompt === item.originalPrompt);
     if (isDuplicate) return;
 
@@ -82,7 +87,7 @@ const App: React.FC = () => {
 
   const resetState = () => {
     setOptimizedPrompts([]);
-    setGeneratedMedia([]);
+    setGeneratedResults([]);
     setGenerationState('idle');
     setErrorMessage(null);
     setLoadingMessage('');
@@ -91,101 +96,84 @@ const App: React.FC = () => {
   };
   
   const handleWebHandoff = () => {
-    const handoff = (promptToCopy?: string) => {
-        const url = 'https://gemini.google.com/app';
-        if (promptToCopy) {
-            navigator.clipboard.writeText(promptToCopy).then(() => {
-                window.open(url, '_blank');
-                setGenerationState('web_handoff');
-            }).catch(err => {
-                console.error("Failed to copy prompt:", err);
-                window.open(url, '_blank');
-                setGenerationState('web_handoff');
-            });
-        } else {
-             console.error("No prompt was available to hand off.");
-             window.open(url, '_blank');
-             setGenerationState('web_handoff');
-        }
-    };
-    handoff(lastAttemptedPrompt);
+     const url = 'https://gemini.google.com/app';
+      if (lastAttemptedPrompt) {
+          navigator.clipboard.writeText(lastAttemptedPrompt).then(() => {
+              window.open(url, '_blank');
+              setGenerationState('web_handoff');
+          }).catch(err => {
+              console.error("Failed to copy prompt:", err);
+              window.open(url, '_blank');
+              setGenerationState('web_handoff');
+          });
+      } else {
+           console.error("No prompt was available to hand off.");
+           window.open(url, '_blank');
+           setGenerationState('web_handoff');
+      }
   };
 
   const handleImageGeneration = async () => {
     setGenerationState('optimizing_prompts');
     setErrorMessage(null);
-    setGeneratedMedia([]);
-    setLoadingMessage('Optimizing your prompt(s)...');
+    setGeneratedResults([]);
+    setLoadingMessage('Optimizando tu(s) prompt(s)...');
     setOptimizedPrompts([]);
     setPromptScores(null);
 
     try {
-        // Only show selection screen for a single prompt
         if (prompts.length === 1 && prompts[0].trim()) {
             const originalPrompt = prompts[0];
             const optimizedPrompt = await optimizePrompt(originalPrompt);
 
-            // If optimization is negligible, skip selection and just generate.
             if (optimizedPrompt.toLowerCase() === originalPrompt.toLowerCase()) {
                 setOptimizedPrompts([optimizedPrompt]);
-                // Proceed directly to generation
                 setGenerationState('generating');
-                setLoadingMessage(`Generating 1 image...`);
+                setLoadingMessage(`Generando 1 imagen...`);
                 setLastAttemptedPrompt(optimizedPrompt);
                 const imageBase64 = await generateImage(optimizedPrompt, style, aspectRatio, negativePrompt);
-                const imageUrl = `data:image/jpeg;base64,${imageBase64}`;
-                setGeneratedMedia([imageUrl]);
-                handleSaveToGallery({
-                    mediaUrl: imageUrl, type: 'image', originalPrompt,
+                const result: ResultItem = {
+                    mediaUrl: `data:image/jpeg;base64,${imageBase64}`, originalPrompt,
                     optimizedPrompt, negativePrompt, style, aspectRatio
-                });
+                };
+                setGeneratedResults([result]);
+                handleSaveToGallery(result);
                 setGenerationState('success');
                 return;
             }
             
-            setLoadingMessage('Rating prompts...');
-            const [originalScore, optimizedScore] = await Promise.all([
-                ratePrompt(originalPrompt),
-                ratePrompt(optimizedPrompt)
-            ]);
+            setLoadingMessage('Calificando prompts...');
+            const [originalScore, optimizedScore] = await Promise.all([ ratePrompt(originalPrompt), ratePrompt(optimizedPrompt) ]);
 
             setOptimizedPrompts([optimizedPrompt]);
             setPromptScores({ original: originalScore, optimized: optimizedScore });
-            setGenerationState('prompt_selection'); // Hand off to the user
+            setGenerationState('prompt_selection');
 
-        } else { // Multi-prompt or empty prompt: generate all without selection
+        } else {
             const activePrompts = prompts.filter(p => p.trim());
-            const optimized = await Promise.all(
-                activePrompts.map(p => optimizePrompt(p))
-            );
+            const optimized = await Promise.all(activePrompts.map(p => optimizePrompt(p)));
             setOptimizedPrompts(optimized);
-
             setGenerationState('generating');
-            setLoadingMessage(`Generating ${optimized.length} image(s)...`);
+            setLoadingMessage(`Generando ${optimized.length} imágen(es)...`);
 
-            const newMedia: (string | null)[] = [];
+            const newResults: ResultItem[] = [];
             for (const [index, optPrompt] of optimized.entries()) {
-                setLoadingMessage(`Generating image ${index + 1} of ${optimized.length}...`);
+                setLoadingMessage(`Generando imagen ${index + 1} de ${optimized.length}...`);
                 setLastAttemptedPrompt(optPrompt);
                 const imageBase64 = await generateImage(optPrompt, style, aspectRatio, negativePrompt);
-                const imageUrl = `data:image/jpeg;base64,${imageBase64}`;
-                
-                newMedia.push(imageUrl);
-                setGeneratedMedia([...newMedia]); // Update UI incrementally
-                
-                handleSaveToGallery({
-                    mediaUrl: imageUrl, type: 'image', originalPrompt: activePrompts[index],
+                const result: ResultItem = {
+                    mediaUrl: `data:image/jpeg;base64,${imageBase64}`, originalPrompt: activePrompts[index],
                     optimizedPrompt: optPrompt, negativePrompt, style, aspectRatio
-                });
+                };
+                newResults.push(result);
+                setGeneratedResults([...newResults]);
+                handleSaveToGallery(result);
             }
             setGenerationState('success');
         }
     } catch (error) {
         console.error(error);
         const err = error as Error;
-        if (err.name === 'QuotaExceededError') {
-            setCooldownEndTime(Date.now() + 60000);
-        }
         setErrorMessage(err);
         setGenerationState('error');
     }
@@ -194,38 +182,23 @@ const App: React.FC = () => {
   const handlePromptSelection = async (chosenPrompt: string) => {
       setGenerationState('generating');
       setErrorMessage(null);
-      setLoadingMessage(`Generating image...`);
-
+      setLoadingMessage(`Generando imagen...`);
       try {
           setLastAttemptedPrompt(chosenPrompt);
           const imageBase64 = await generateImage(chosenPrompt, style, aspectRatio, negativePrompt);
-          const imageUrl = `data:image/jpeg;base64,${imageBase64}`;
-          setGeneratedMedia([imageUrl]);
-          
-          handleSaveToGallery({
-              mediaUrl: imageUrl,
-              type: 'image',
-              originalPrompt: prompts[0], // The original user prompt
-              optimizedPrompt: chosenPrompt, // The prompt that was actually used
-              negativePrompt: negativePrompt,
-              style: style,
-              aspectRatio: aspectRatio
-          });
-          
+          const result: ResultItem = {
+              mediaUrl: `data:image/jpeg;base64,${imageBase64}`, originalPrompt: prompts[0],
+              optimizedPrompt: chosenPrompt, negativePrompt, style, aspectRatio
+          };
+          setGeneratedResults([result]);
+          handleSaveToGallery(result);
           setGenerationState('success');
       } catch (error) {
           console.error(error);
           const err = error as Error;
-          if (err.name === 'QuotaExceededError') {
-              setCooldownEndTime(Date.now() + 60000);
-          }
           setErrorMessage(err);
           setGenerationState('error');
       }
-  };
-
-  const handleSubmit = () => {
-    handleImageGeneration();
   };
 
   const renderContent = () => {
@@ -248,21 +221,17 @@ const App: React.FC = () => {
                 setGenerationMode={setGenerationMode}
                 uiMode={uiMode}
                 setUiMode={setUiMode}
-                onSubmit={handleSubmit}
+                onSubmit={handleImageGeneration}
                 isLoading={isLoading}
                 cooldownEndTime={cooldownEndTime}
               />;
           case 'generating':
           case 'optimizing_prompts':
-              return <LoadingIndicator message={loadingMessage} generatedMedia={generatedMedia} />;
+              const mediaUrls = generatedResults.map(r => r.mediaUrl);
+              return <LoadingIndicator message={loadingMessage} generatedMedia={mediaUrls} />;
           case 'success':
               return <ResultDisplay 
-                mediaUrls={generatedMedia}
-                originalPrompts={prompts}
-                optimizedPrompts={optimizedPrompts}
-                negativePrompt={negativePrompt}
-                style={style}
-                aspectRatio={aspectRatio}
+                results={generatedResults}
                 galleryItems={galleryItems}
                 onSaveToGallery={handleSaveToGallery}
                 onReset={resetState}

@@ -6,14 +6,16 @@ interface LoadingIndicatorProps {
 }
 
 export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({ message, generatedMedia }) => {
+    const validMedia = generatedMedia.filter(Boolean) as string[];
+
     return (
         <div className="text-center p-6 bg-gray-700/50 rounded-lg flex flex-col items-center justify-center space-y-4">
-            {generatedMedia.length > 0 && (
+            {validMedia.length > 0 && (
                 <div className="mb-4 w-full">
-                    <p className="text-sm font-medium text-gray-300 mb-2">Generated Scenes:</p>
+                    <p className="text-sm font-medium text-gray-300 mb-2">Escenas Generadas:</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {generatedMedia.map((image, index) => (
-                            image ? <img key={index} src={image} alt={`Generated scene ${index + 1}`} className="rounded-md shadow-md border-2 border-pink-500/50 aspect-video object-cover" /> : null
+                        {validMedia.map((image, index) => (
+                           <img key={index} src={image} alt={`Escena generada ${index + 1}`} className="rounded-md shadow-md border-2 border-pink-500/50 aspect-video object-cover" />
                         ))}
                     </div>
                 </div>

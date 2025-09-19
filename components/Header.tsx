@@ -23,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({ view, setView }) => {
                         }`}
                         aria-pressed={view === 'generator'}
                     >
-                        Generator
+                        Generador
                     </button>
                     <button
                         onClick={() => setView('gallery')}
@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({ view, setView }) => {
                         }`}
                         aria-pressed={view === 'gallery'}
                     >
-                        Gallery
+                        Galería
                     </button>
                 </div>
             </div>

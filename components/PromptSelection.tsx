@@ -49,7 +49,7 @@ const PromptCard: React.FC<PromptCardProps> = ({ title, prompt, score, onSelect,
                 onClick={onSelect}
                 className={`mt-6 w-full inline-flex items-center justify-center px-4 py-3 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-pink-500 transition-all duration-300 ${buttonClasses}`}
             >
-                Use this Prompt
+                Usar este Prompt
             </button>
         </div>
     );
@@ -60,21 +60,21 @@ export const PromptSelection: React.FC<PromptSelectionProps> = ({ originalPrompt
         <div className="space-y-8 animate-fade-in">
             <div className="text-center">
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-200">
-                    Choose Your Prompt
+                    Elige tu Prompt
                 </h2>
                 <p className="mt-2 text-gray-400 max-w-2xl mx-auto">
-                    The AI has optimized your prompt to add more detail. The scores reflect prompt quality. Choose which version you'd like to use.
+                    La IA ha optimizado tu prompt para añadir más detalle. Las puntuaciones reflejan la calidad del prompt. Elige qué versión te gustaría usar.
                 </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
                 <PromptCard
-                    title="Your Prompt"
+                    title="Tu Prompt"
                     prompt={originalPrompt}
                     score={scores.original}
                     onSelect={() => onSelect(originalPrompt)}
                 />
                 <PromptCard
-                    title="AI-Optimized Prompt"
+                    title="Prompt Optimizado por IA"
                     prompt={optimizedPrompt}
                     score={scores.optimized}
                     onSelect={() => onSelect(optimizedPrompt)}
@@ -86,7 +86,7 @@ export const PromptSelection: React.FC<PromptSelectionProps> = ({ originalPrompt
                     onClick={onCancel}
                     className="text-gray-400 hover:text-white text-sm font-semibold transition-colors"
                 >
-                    Start Over
+                    Empezar de Nuevo
                 </button>
             </div>
         </div>

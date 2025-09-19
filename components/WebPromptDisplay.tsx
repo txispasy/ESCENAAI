@@ -16,10 +16,10 @@ export const WebHandoffDisplay: React.FC<WebHandoffDisplayProps> = ({ onClose })
             </div>
             <div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-200">
-                    Ready to Generate!
+                    ¡Listo para Generar!
                 </h2>
                 <p className="mt-2 text-gray-400 max-w-xl mx-auto">
-                    We've copied your prompt and opened Gemini in a new tab. Just paste (<kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">Ctrl+V</kbd> or <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">Cmd+V</kbd>) to create your image.
+                    Hemos copiado tu prompt y abierto Gemini en una nueva pestaña. Simplemente pégalo (<kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">Ctrl+V</kbd> o <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">Cmd+V</kbd>) para crear tu imagen.
                 </p>
             </div>
             
@@ -28,7 +28,7 @@ export const WebHandoffDisplay: React.FC<WebHandoffDisplayProps> = ({ onClose })
                     onClick={onClose}
                     className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0E1116] focus:ring-pink-500 transition-all"
                 >
-                    Create Another
+                    Crear Otro
                 </button>
             </div>
         </div>
